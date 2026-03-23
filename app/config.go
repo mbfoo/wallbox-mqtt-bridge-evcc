@@ -21,6 +21,9 @@ type WallboxConfig struct {
 		DeviceName             string `ini:"device_name"`
 		DebugSensors           bool   `ini:"debug_sensors"`
 		PowerBoostEnabled      bool   `ini:"power_boost_enabled"`
+		IntervalUpdatedTopics        []string `ini:"interval_updated_topics"`
+		IntervalUpdatedTopicsSeconds int      `ini:"interval_updated_topics_seconds"`
+		VerboseOutput                bool     `ini:"verbose_output"`
 	} `ini:"settings"`
 }
 

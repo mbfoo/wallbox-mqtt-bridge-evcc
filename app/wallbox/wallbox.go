@@ -549,6 +549,26 @@ func (w *Wallbox) ControlPilotStatus() string {
 	return "Unknown"
 }
 
+func (w *Wallbox) ControlPilotLetter() string {
+    cp := w.effectiveCP()
+    switch {
+    case cp == 0x0E:
+        return "E"
+    case cp == 0x0F:
+        return "F"
+    case cp >= 0xA1 && cp <= 0xA6:
+        return "A"
+    case cp >= 0xB1 && cp <= 0xBD:
+        return "B"
+    case cp >= 0xC1 && cp <= 0xC4:
+        return "C"
+    case cp >= 0xD1 && cp <= 0xD2:
+        return "D"
+    default:
+        return "A"
+    }
+}
+
 func (w *Wallbox) StateMachineState() string {
 	state := w.effectiveStateMachine()
 	if state > 0 {

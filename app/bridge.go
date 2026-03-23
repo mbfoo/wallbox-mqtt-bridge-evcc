@@ -6,13 +6,14 @@ import (
 	"maps"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"github.com/jagheterfredrik/wallbox-mqtt-bridge/app/wallbox"
+	"github.com/mbfoo/wallbox-mqtt-bridge-evcc/app/wallbox"
 )
 
 const (
@@ -69,6 +70,7 @@ func RunBridge(configPath string) {
 	// onConnect handler (called from the paho goroutine) clears it while the
 	// main loop reads/writes it.
 	published := make(map[string]any)
+	lastUpdateIntervalUpdatedTopics := make(map[string]time.Time)
 	var publishedMu sync.Mutex
 
 	messageHandler := func(client mqtt.Client, msg mqtt.Message) {
@@ -194,17 +196,24 @@ func RunBridge(configPath string) {
 
 		for key, val := range entityConfig {
 			payload := val.Getter()
-			if published[key] == payload {
+			isIntervalTopic := slices.Index(c.Settings.IntervalUpdatedTopics, key) > -1
+			isIntervalDue := isUpdateForTopicNecessary(lastUpdateIntervalUpdatedTopics[key], c)
+			if c.Settings.VerboseOutput {
+				fmt.Printf("Check publishing '%s': isIntervalTopic=%t, isIntervalDue=%t, lastUpdate=%s\n",
+					key, isIntervalTopic, isIntervalDue, lastUpdateIntervalUpdatedTopics[key].String())
+			}
+			if published[key] == payload && !(isIntervalTopic && isIntervalDue) {
 				continue
 			}
 			if val.RateLimit != nil && !val.RateLimit.Allow(strToFloat(payload)) {
+				if c.Settings.VerboseOutput {
+					fmt.Printf("Rate limit exceeded for key '%s' and payload '%s'\n", key, payload)
+				}
 				continue
 			}
 			fmt.Println("Publishing:", key, payload)
 			token := client.Publish(topicPrefix+"/"+key+"/state", 1, true, []byte(payload))
 
-			// Use a timeout instead of blocking forever; a silent network hang
-			// would otherwise freeze the entire poll loop indefinitely.
 			go func(t mqtt.Token, k string) {
 				if !t.WaitTimeout(mqttPublishTimeout) {
 					fmt.Println("Warning: publish timed out for", k)
@@ -212,6 +221,7 @@ func RunBridge(configPath string) {
 			}(token, key)
 
 			published[key] = payload
+			lastUpdateIntervalUpdatedTopics[key] = time.Now()
 		}
 	}
 
@@ -237,4 +247,11 @@ func RunBridge(configPath string) {
 			return
 		}
 	}
+}
+
+func isUpdateForTopicNecessary(lastUpdate time.Time, config *WallboxConfig) bool {
+    if lastUpdate.IsZero() {
+        return true
+    }
+    return int(time.Since(lastUpdate).Seconds()) > config.Settings.IntervalUpdatedTopicsSeconds
 }

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	bridge "github.com/jagheterfredrik/wallbox-mqtt-bridge/app"
+	bridge "github.com/mbfoo/wallbox-mqtt-bridge-evcc/app"
 )
 
 func main() {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/jagheterfredrik/wallbox-mqtt-bridge/app/ratelimit"
-	"github.com/jagheterfredrik/wallbox-mqtt-bridge/app/wallbox"
+	"github.com/mbfoo/wallbox-mqtt-bridge-evcc/app/ratelimit"
+	"github.com/mbfoo/wallbox-mqtt-bridge-evcc/app/wallbox"
 )
 
 type Entity struct {
@@ -293,6 +293,13 @@ func getEntities(w *wallbox.Wallbox) map[string]Entity {
 				"entity_category":             "diagnostic",
 			},
 		},
+		"control_pilot": {
+			Component: "sensor",
+			Getter:    w.ControlPilotLetter,
+			Config: map[string]string{
+				"name": "Control pilot",
+			},
+},
 	}
 }
 
@@ -429,12 +436,19 @@ func getPowerBoostEntities(w *wallbox.Wallbox) map[string]Entity {
 				"suggested_display_precision": "1",
 			},
 		},
+		// "control_pilot": {
+		// 	Component: "sensor",
+		// 	Getter:    w.ControlPilotLetter,
+		// 	Config: map[string]string{
+		// 		"name": "Control pilot",
+		// 	},
+		// },
 	}
 }
 
 func getDebugEntities(w *wallbox.Wallbox) map[string]Entity {
 	return map[string]Entity{
-		"control_pilot": {
+		"control_pilot_raw": {
 			Component: "sensor",
 			Getter:    w.ControlPilotStatus,
 			Config: map[string]string{

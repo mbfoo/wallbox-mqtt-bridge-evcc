@@ -1,4 +1,4 @@
-module github.com/jagheterfredrik/wallbox-mqtt-bridge
+module github.com/mbfoo/wallbox-mqtt-bridge-evcc
 
 go 1.26.0
 

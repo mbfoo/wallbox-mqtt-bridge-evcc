@@ -1,116 +1,189 @@
-# MQTT Bridge for Wallbox
+# MQTT Bridge for Wallbox with evcc support
 
-This open-source project connects your Wallbox charger fully locally to Home Assistant, providing unparalleled speed and reliability.
+This is a fork of [jagheterfredrik/wallbox-mqtt-bridge](https://github.com/jagheterfredrik/wallbox-mqtt-bridge).
+It adds support for **[evcc](https://evcc.io)**.
 
-## Features
+There is another wallbox-mqtt-bridge fork from [sweber/wallbox-mqtt-bridge](https://github.com/sweber/wallbox-mqtt-bridge/), which basically covers the same functionality as this one, but it doesn't support Wallbox SW version v6.6.x or newer. This fork was tested with Wallbox SW 6.7.38.
 
-- **Real-time sensor data:** The Wallbox's internal state is polled every second (configurable), and any changes are immediately pushed to your MQTT broker. Live Redis pub/sub notifications ensure instant updates without waiting for the next poll cycle.
 
-- **Local control:** Lock/unlock, pause/resume charging, adjust max charging current, and set halo brightness — all without involving the manufacturer's servers.
+The changes were developed with the assistance of [Claude](https://claude.ai). Note I never did program anything using the go programming language. I reviewed the changes, they looked good and I tested them successfully with my Wallbox Pulsar Plus SW 6.7.38.
 
-- **Resilient connection:** The bridge automatically retries on startup if the MQTT broker is unavailable and reconnects seamlessly after any network interruption. All Home Assistant discovery configs and sensor states are re-published on every reconnect.
+This version can be used as a drop-on replacement of the [sweber](https://github.com/sweber/wallbox-mqtt-bridge/) fork. If you previously used this with an older Wallbox firmware, you don't have to change anything in your evcc configuration.
 
-- **Home Assistant MQTT Auto Discovery:** Sensors, switches, locks, and number controls are automatically registered in Home Assistant. No manual entity configuration required.
+---
 
-- **Optional Power Boost support:** Enable per-phase power, current, and voltage sensors for Wallbox Power Boost installations.
+## Changes in this fork
 
-<br/>
-<p align="center">
-   <img src="https://github.com/jagheterfredrik/wallbox-mqtt-bridge/assets/9987465/06488a5d-e6fe-4491-b11d-e7176792a7f5" height="507" />
-</p>
+### Publish control pilot state
+- A new **`control_pilot`** sensor is published to MQTT, exposing the IEC 61851 single-letter state (`A`, `B`, `C`, `D`, `E`, `F`) required by evcc to determine charger status.
 
-## Entities
+### Periodic MQTT publishing
+- Selected topics can be configured to re-publish their current value at a fixed interval. This prevents evcc from timing out on topics that are legitimately stable for long periods (e.g. `charging_enable` staying `1` while a car is plugged in).
+- Three new `[settings]` keys control this behaviour:
+  - `interval_updated_topics` — comma-separated list of topic keys to re-publish periodically
+  - `interval_updated_topics_seconds` — re-publish interval in seconds (default: `15`)
+  - `verbose_output` — log every publish check to stdout for debugging (default: `false`)
 
-### Always present
+### Debug sensor rename
+- The debug `control_pilot` entity (which showed the raw integer + string) has been renamed to `control_pilot_raw` to avoid overwriting the new evcc-compatible sensor.
 
-| Entity | Type | Writable |
-|---|---|---|
-| Status | sensor | — |
-| Charging power (total + L1/L2/L3) | sensor | — |
-| Charging current (L1/L2/L3) | sensor | — |
-| Voltage (L1/L2/L3) | sensor | — |
-| Added energy (session) | sensor | — |
-| Cumulative added energy | sensor | — |
-| Added range | sensor | — |
-| Cable connected | binary_sensor | — |
-| Temperature (L1/L2/L3) | sensor | — |
-| Charging enable | switch | ✓ |
-| Lock | lock | ✓ |
-| Max charging current | number (6 A – max) | ✓ |
-| Halo brightness | number (0–100 %) | ✓ |
 
-### Power Boost (optional, `power_boost_enabled = true`)
-
-| Entity | Type |
-|---|---|
-| Power Boost power (L1/L2/L3) | sensor |
-| Power Boost current (L1/L2/L3) | sensor |
-| Power Boost voltage (L1/L2/L3) | sensor |
-| Power Boost cumulative energy | sensor |
-| Power Boost meter status | sensor |
-
-### Debug sensors (optional, `debug_sensors = true`)
-
-| Entity | Type |
-|---|---|
-| State machine state | sensor |
-| Control pilot | sensor |
-| M2W status | sensor |
-| S2 open | sensor |
+---
 
 ## Getting Started
 
-1. [Root your Wallbox](https://github.com/jagheterfredrik/wallbox-pwn)
-2. Set up an MQTT broker if you don't already have one. Here's an example of [installing it as a Home Assistant add-on](https://www.youtube.com/watch?v=dqTn-Gk4Qeo).
-3. SSH to your Wallbox and run:
+### Prerequisites
 
+1. [Root your Wallbox](https://github.com/jagheterfredrik/wallbox-pwn)
+2. Have an MQTT broker available (e.g. [Mosquitto as a Home Assistant add-on](https://www.youtube.com/watch?v=dqTn-Gk4Qeo))
+
+
+### Manually upgrading from jagheterfredrik or sweber
+
+You need to have an existing installation of the original bridge from [jagheterfredrik/wallbox-mqtt-bridge](https://github.com/jagheterfredrik/wallbox-mqtt-bridge) or the evcc-fork from [sweber/wallbox-mqtt-bridge](https://github.com/sweber/wallbox-mqtt-bridge/) already running on your Wallbox
+
+To check which architecture your Wallbox uses, SSH into it and run:
 ```sh
-curl -sSfL https://github.com/jagheterfredrik/wallbox-mqtt-bridge/releases/download/bridge/install.sh > install.sh && bash install.sh
+uname -m
+# armv7l  → use bridge-armhf
+# aarch64 → use bridge-arm64
 ```
 
-The installer will download the correct binary for your architecture (`armhf` or `arm64`), prompt you to create a configuration file on first run, install the bridge as a systemd service, and start it automatically.
+Stop the running service, download the new binary, and restart:
 
-> **Upgrading:** run the same command again to upgrade to the latest version. Your `bridge.ini` configuration file is preserved.
+```sh
+systemctl stop mqtt-bridge
+
+cp /home/root/mqtt-bridge/bridge /home/root/mqtt-bridge/bridge.bak   # optional backup
+wget -O /home/root/mqtt-bridge/bridge http://...
+chmod +x /home/root/mqtt-bridge/bridge
+
+systemctl start mqtt-bridge
+systemctl status mqtt-bridge
+```
+
+Your existing `bridge.ini` configuration is preserved. Add the new evcc settings manually if required (see below).
+
+---
 
 ## Configuration
 
-The bridge is configured via `~/mqtt-bridge/bridge.ini`. To create or reconfigure it interactively, run:
+The bridge is configured via `/home/root/mqtt-bridge/bridge.ini`. To create or reconfigure it interactively, run:
 
 ```sh
-cd ~/mqtt-bridge && ./bridge --config
+cd /home/root/mqtt-bridge/ && ./bridge --config
 ```
 
-### Configuration reference
+### bridge.ini
 
 ```ini
 [mqtt]
-# Broker address. Use `url` for a full URI (e.g. mqtts://host:8883),
-# or `host`+`port` for a plain TCP connection.
-url      =
-host     = 127.0.0.1
+host     = 192.168.123.123
 port     = 1883
-username =
-password =
+username = 
+password = 
 
 [settings]
-polling_interval_seconds = 1
-device_name              = Wallbox
-debug_sensors            = false
-power_boost_enabled      = false
+polling_interval_seconds        = 1
+device_name                     = Wallbox
+debug_sensors                   = false
+power_boost_enabled             = false
+interval_updated_topics         = charging_enable,charging_power,control_pilot,charging_current_l1,charging_current_l2,charging_current_l3,added_energy
+interval_updated_topics_seconds = 15
+verbose_output                  = false
+
 ```
 
-### MQTT topic layout
+---
 
-All topics are prefixed with `wallbox_<serial_number>/`.
+## evcc Configuration
 
-| Topic | Description |
-|---|---|
-| `wallbox_<serial>/availability` | `online` / `offline` (retained LWT) |
-| `wallbox_<serial>/<entity>/state` | Current value (retained) |
-| `wallbox_<serial>/<entity>/set` | Write a new value |
+This is an example evcc configuration (still old .yaml format):
 
-Home Assistant discovery configs are published to `homeassistant/<component>/<serial>_<entity>/config`.
+```yaml
+meters:
+- name: wallbox_meter
+  type: custom
+  power:
+    source: mqtt
+    topic: wallbox_<serial>/charging_power/state
+    timeout: 180s
+  energy:
+    source: calc
+    mul:
+      - source: mqtt
+        topic: wallbox_<serial>/added_energy/state
+        timeout: 180s
+      - source: const
+        value: 0.001
+  currents:
+    - source: mqtt
+      topic: wallbox_<serial>/charging_current_l1/state
+    - source: mqtt
+      topic: wallbox_<serial>/charging_current_l2/state
+    - source: mqtt
+      topic: wallbox_<serial>/charging_current_l3/state
+
+chargers:
+- name: wallbox_charger
+  type: custom
+  status:
+    source: mqtt
+    topic: wallbox_<serial>/control_pilot/state
+  enabled: # charger enabled state (true/false or 0/1)
+    source: mqtt
+    topic: wallbox_<serial>/charging_enable/state
+  enable: # set charger enabled state (true/false or 0/1)
+    source: mqtt
+    topic: wallbox_<serial>/charging_enable/set
+    payload: ${enable:%d}
+  maxcurrent: # set charger max current (A)
+    source: mqtt
+    topic: wallbox_<serial>/max_charging_current/set
+
+loadpoints:
+- title: Car
+  charger: wallbox_charger
+  meter: wallbox_meter
+```
+
+## Prevent Wallbox auto updates
+Even with Wallbox auto updates set to disabled in the app, my wallbox updated itself one day from 6.4.14 to 6.7.38
+
+Here are instructions to (hopefully) avoid this in future, taken from [here](https://github.com/jagheterfredrik/wallbox-mqtt-bridge/issues/63#issuecomment-4023057641):
+
+### Layer 1: Pin the sources.list to your version
+(not required in my case, as the file already contained my version)
+```bash
+echo "deb https://pulsar-repo.wall-box.com/microchip/6.7.38 morty main" \
+  > /home/root/.wallbox/sources.list
+```
+### Layer 2: Make both sources.list files immutable
+```bash
+chattr +i /home/root/.wallbox/sources.list
+chattr +i /etc/apt/sources.list
+```
+Even if software_update receives a new sources.list from the Wallbox backend API, it cannot write it to disk. The service fails harmlessly. Verify:
+
+```bash
+lsattr /home/root/.wallbox/sources.list
+# Should show: ----i--------e-- /home/root/.wallbox/sources.list
+```
+
+To reverse (if you ever want to update intentionally):
+
+```bash
+chattr -i /home/root/.wallbox/sources.list
+chattr -i /etc/apt/sources.list
+```
+### Layer 3: Disable the automatic_update scheduler
+```bash
+systemctl disable automatic_update
+systemctl stop automatic_update
+```
+
+---
 
 ## Acknowledgments
 
-A big shoutout to [@tronikos](https://github.com/tronikos) for their valuable contributions. This project wouldn't be the same without the collaborative spirit of the open-source community.
+All credit for the original project goes to [@jagheterfredrik](https://github.com/jagheterfredrik), [@sweber](https://github.com/sweber/wallbox-mqtt-bridge/) and contributors. This fork only adds evcc integration on top of their work.

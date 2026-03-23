@@ -46,8 +46,12 @@ func RunTuiSetup() {
 	config.MQTT.Password = ""
 	config.Settings.PollingIntervalSeconds = 1
 	config.Settings.DeviceName = "Wallbox"
-	config.Settings.DebugSensors = false
+	config.Settings.DebugSensors = true
 	config.Settings.PowerBoostEnabled = false
+
+	config.Settings.VerboseOutput = false
+	config.Settings.IntervalUpdatedTopics = []string{"charging_enable", "charging_power", "control_pilot"}
+	config.Settings.IntervalUpdatedTopicsSeconds = 15
 
 	askConfirmOrNew(&config.MQTT.Host, "MQTT Host")
 	askConfirmOrNewInt(&config.MQTT.Port, "MQTT Port")
@@ -57,6 +61,9 @@ func RunTuiSetup() {
 	askConfirmOrNew(&config.Settings.DeviceName, "Device name")
 	askConfirmOrNewBool(&config.Settings.DebugSensors, "Debug sensors")
 	askConfirmOrNewBool(&config.Settings.PowerBoostEnabled, "Enable Power Boost sensors")
+
+	askConfirmOrNewBool(&config.Settings.VerboseOutput, "Enable verbose output (very noisy)")
+	askConfirmOrNewInt(&config.Settings.IntervalUpdatedTopicsSeconds, "Update interval seconds for interval updated topics")
 
 	config.SaveTo("bridge.ini")
 }
