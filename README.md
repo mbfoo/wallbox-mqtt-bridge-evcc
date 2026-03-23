@@ -8,7 +8,7 @@ There is another wallbox-mqtt-bridge fork from [sweber/wallbox-mqtt-bridge](http
 
 The changes were developed with the assistance of [Claude](https://claude.ai). Note I never did program anything using the go programming language. I reviewed the changes, they looked good and I tested them successfully with my Wallbox Pulsar Plus SW 6.7.38.
 
-This version can be used as a drop-on replacement of the [sweber](https://github.com/sweber/wallbox-mqtt-bridge/) fork. If you previously used this with an older Wallbox firmware, you don't have to change anything in your evcc configuration.
+This version can be used as a drop-in replacement of the [sweber](https://github.com/sweber/wallbox-mqtt-bridge/) fork. If you previously used this with an older Wallbox firmware, you don't have to change anything in your evcc configuration.
 
 ---
 
@@ -55,7 +55,9 @@ Stop the running service, download the new binary, and restart:
 systemctl stop mqtt-bridge
 
 cp /home/root/mqtt-bridge/bridge /home/root/mqtt-bridge/bridge.bak   # optional backup
-wget -O /home/root/mqtt-bridge/bridge http://...
+
+# get the binary download link and download it using wget. scp doesn't work due to missing packages on the wallbox
+wget -O /home/root/mqtt-bridge/bridge https://github.com/mbfoo/wallbox-mqtt-bridge-evcc/releases/download/2026-03-23/bridge-armhf # or bridge-arm64
 chmod +x /home/root/mqtt-bridge/bridge
 
 systemctl start mqtt-bridge
@@ -148,7 +150,7 @@ loadpoints:
 ```
 
 ## Prevent Wallbox auto updates
-Even with Wallbox auto updates set to disabled in the app, my wallbox updated itself one day from 6.4.14 to 6.7.38
+Even with Wallbox auto updates set to disabled in the app, one day my wallbox updated itself from 6.4.14 to 6.7.38
 
 Here are instructions to (hopefully) avoid this in future, taken from [here](https://github.com/jagheterfredrik/wallbox-mqtt-bridge/issues/63#issuecomment-4023057641):
 
