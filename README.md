@@ -37,6 +37,17 @@ This version can be used as a drop-in replacement of the [sweber](https://github
 1. [Root your Wallbox](https://github.com/jagheterfredrik/wallbox-pwn)
 2. Have an MQTT broker available (e.g. [Mosquitto as a Home Assistant add-on](https://www.youtube.com/watch?v=dqTn-Gk4Qeo))
 
+### Automatic install
+> I didn't test, I just took over the script from jagheterfredrik and modified the URLs:
+
+SSH to your Wallbox and run:
+```bash
+curl -sSfL https://raw.githubusercontent.com/mbfoo/wallbox-mqtt-bridge-evcc/refs/heads/main/install.sh > install.sh && bash install.sh
+```
+
+The installer will download the correct binary for your architecture (`armhf` or `arm64`), prompt you to create a configuration file on first run, install the bridge as a systemd service, and start it automatically.
+
+> **Upgrading:** run the same command again to upgrade to the latest version. Your `bridge.ini` configuration file is preserved.
 
 ### Manually upgrading from jagheterfredrik or sweber
 
